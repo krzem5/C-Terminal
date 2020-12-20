@@ -1,0 +1,7 @@
+### Github File Push Ignore
+
+build
+rsrc/*.png
+rsrc/*.json
+rsrc/*.dds
+*.py
