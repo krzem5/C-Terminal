@@ -1,9 +1,11 @@
 #define COBJMACROS
 #include <renderer.h>
 #include <engine.h>
+#include <ui.h>
 #include <windows.h>
 #include <windowsx.h>
 #include <unknwn.h>
+#include <dwmapi.h>
 #include <shellscalingapi.h>
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
@@ -14,6 +16,7 @@
 #pragma comment(lib,"d3dcompiler.lib")
 #pragma comment(lib,"dxguid.lib")
 #pragma comment(lib,"shcore.lib")
+#pragma comment(lib,"dwmapi.lib")
 
 
 
@@ -50,43 +53,39 @@ LRESULT CALLBACK _msg_cb(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 		case WM_KILLFOCUS:
 			renderer_wf=false;
 			renderer_mf=0;
-			return 0;
+			break;
 		case WM_SETFOCUS:
 			renderer_wf=true;
-			return 0;
+			break;
 		case WM_KEYDOWN:
-			return 0;
-		case WM_MOUSEMOVE:
-			renderer_mx=(int16_t)GET_X_LPARAM(lp);
-			renderer_my=(int16_t)GET_Y_LPARAM(lp);
-			return 0;
+			break;
 		case WM_LBUTTONDBLCLK:
 			renderer_mf|=M_LEFT_DBL;
-			return 0;
+			break;
 		case WM_LBUTTONDOWN:
 			renderer_mf|=M_LEFT;
-			return 0;
+			break;
 		case WM_LBUTTONUP:
 			renderer_mf&=(~M_LEFT);
-			return 0;
+			break;
 		case WM_MBUTTONDBLCLK:
 			renderer_mf|=M_MIDDLE_DBL;
-			return 0;
+			break;
 		case WM_MBUTTONDOWN:
 			renderer_mf|=M_MIDDLE;
-			return 0;
+			break;
 		case WM_MBUTTONUP:
 			renderer_mf|=(~M_MIDDLE);
-			return 0;
+			break;
 		case WM_RBUTTONDBLCLK:
 			renderer_mf|=M_RIGHT_DBL;
-			return 0;
+			break;
 		case WM_RBUTTONDOWN:
 			renderer_mf|=M_RIGHT;
-			return 0;
+			break;
 		case WM_RBUTTONUP:
 			renderer_mf&=(~M_RIGHT);
-			return 0;
+			break;
 		case WM_XBUTTONDBLCLK:
 			if (GET_XBUTTON_WPARAM(wp)==0x1){
 				renderer_mf=M_X1_DBL;
@@ -94,7 +93,7 @@ LRESULT CALLBACK _msg_cb(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 			else{
 				renderer_mf=M_X2_DBL;
 			}
-			return 0;
+			break;
 		case WM_XBUTTONDOWN:
 			if (GET_XBUTTON_WPARAM(wp)==0x1){
 				renderer_mf|=M_X1;
@@ -102,7 +101,7 @@ LRESULT CALLBACK _msg_cb(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 			else{
 				renderer_mf|=M_X2;
 			}
-			return 0;
+			break;
 		case WM_XBUTTONUP:
 			if (GET_XBUTTON_WPARAM(wp)==0x1){
 				renderer_mf&=(~M_X1);
@@ -110,44 +109,113 @@ LRESULT CALLBACK _msg_cb(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 			else{
 				renderer_mf&=(~M_X2);
 			}
-			return 0;
+			break;
 		case WM_SIZE:
 			if (renderer_d3_dc!=NULL){
 				RECT sz;
-				GetClientRect(renderer_w,&sz);
-				renderer_ww=sz.right;
-				renderer_wh=sz.bottom;
-				ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,0,0,0);
-				ID3D11RenderTargetView_Release(renderer_d3_rt);
-				HRESULT hr=IDXGISwapChain_ResizeBuffers(renderer_d3_sc,0,0,0,DXGI_FORMAT_UNKNOWN,0);
-				ID3D11Texture2D* bb=NULL;
-				hr=IDXGISwapChain_GetBuffer(renderer_d3_sc,0,&IID_ID3D11Texture2D,(void**)&bb);
-				ID3D11Resource* bbr=NULL;
-				ID3D11Texture2D_QueryInterface(bb,&IID_ID3D11Resource,(void**)&bbr);
-				hr=ID3D11Device_CreateRenderTargetView(renderer_d3_d,bbr,NULL,&renderer_d3_rt);
-				ID3D11Resource_Release(bbr);
-				ID3D11Texture2D_Release(bb);
-				ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,1,&renderer_d3_rt,NULL);
-				D3D11_VIEWPORT vp={
-					0,
-					0,
-					(float)renderer_ww,
-					(float)renderer_wh,
-					0,
-					1
-				};
-				ID3D11DeviceContext_RSSetViewports(renderer_d3_dc,1,&vp);
+				GetWindowRect(renderer_w,&sz);
+				if (sz.right!=0&&sz.bottom!=0){
+					if (sz.top<0){
+						sz.top=0;
+					}
+					if (sz.left<0){
+						sz.left=0;
+					}
+					renderer_wx=sz.left;
+					renderer_wy=sz.top;
+					renderer_ww=sz.right-sz.left;
+					renderer_wh=sz.bottom-sz.top;
+					ID3D11RenderTargetView_Release(renderer_d3_rt);
+					ID3D11Texture2D_Release(renderer_d3_ds);
+					ID3D11DepthStencilView_Release(renderer_d3_dsv);
+					ID3D11DepthStencilState_Release(renderer_d3_dss);
+					ID3D11DepthStencilState_Release(renderer_d3_ddss);
+					ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,0,NULL,NULL);
+					HRESULT hr=IDXGISwapChain_ResizeBuffers(renderer_d3_sc,2,renderer_ww,renderer_wh,DXGI_FORMAT_UNKNOWN,0);
+					ID3D11Texture2D* bb=NULL;
+					hr=IDXGISwapChain_GetBuffer(renderer_d3_sc,0,&IID_ID3D11Texture2D,(void**)&bb);
+					ID3D11Resource* bbr=NULL;
+					ID3D11Texture2D_QueryInterface(bb,&IID_ID3D11Resource,(void**)&bbr);
+					hr=ID3D11Device_CreateRenderTargetView(renderer_d3_d,bbr,NULL,&renderer_d3_rt);
+					ID3D11Resource_Release(bbr);
+					ID3D11Texture2D_Release(bb);
+					D3D11_TEXTURE2D_DESC dd={
+						renderer_ww,
+						renderer_wh,
+						1,
+						1,
+						DXGI_FORMAT_D24_UNORM_S8_UINT,
+						{
+							1,
+							0
+						},
+						D3D11_USAGE_DEFAULT,
+						D3D11_BIND_DEPTH_STENCIL,
+						0,
+						0
+					};
+					hr=ID3D11Device_CreateTexture2D(renderer_d3_d,&dd,NULL,&renderer_d3_ds);
+					if (FAILED(hr)){
+						assert(0);
+						break;
+					}
+					D3D11_DEPTH_STENCIL_VIEW_DESC dsv={
+						dd.Format,
+						D3D11_DSV_DIMENSION_TEXTURE2D,
+						0
+					};
+					dsv.Texture2D.MipSlice=0;
+					ID3D11Resource* dsr;
+					ID3D11Texture2D_QueryInterface(renderer_d3_ds,&IID_ID3D11Resource,(void**)&dsr);
+					hr=ID3D11Device_CreateDepthStencilView(renderer_d3_d,dsr,&dsv,&renderer_d3_dsv);
+					D3D11_DEPTH_STENCIL_DESC dss={
+						true,
+						D3D11_DEPTH_WRITE_MASK_ALL,
+						D3D11_COMPARISON_LESS,
+						true,
+						0xff,
+						0xff,
+						{
+							D3D11_STENCIL_OP_KEEP,
+							D3D11_STENCIL_OP_INCR,
+							D3D11_STENCIL_OP_KEEP,
+							D3D11_COMPARISON_ALWAYS
+						},
+						{
+							D3D11_STENCIL_OP_KEEP,
+							D3D11_STENCIL_OP_DECR,
+							D3D11_STENCIL_OP_KEEP,
+							D3D11_COMPARISON_ALWAYS
+						}
+					};
+					hr=ID3D11Device_CreateDepthStencilState(renderer_d3_d,&dss,&renderer_d3_dss);
+					ID3D11DeviceContext_OMSetDepthStencilState(renderer_d3_dc,renderer_d3_dss,1);
+					dss.DepthEnable=false;
+					hr=ID3D11Device_CreateDepthStencilState(renderer_d3_d,&dss,&renderer_d3_ddss);
+					ID3D11Resource_Release(dsr);
+					ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,1,&renderer_d3_rt,NULL);
+					D3D11_VIEWPORT vp={
+						0,
+						0,
+						(float)renderer_ww,
+						(float)renderer_wh,
+						0,
+						1
+					};
+					ID3D11DeviceContext_RSSetViewports(renderer_d3_dc,1,&vp);
+					update_size();
+				}
 			}
-			return 0;
+			break;
 		case WM_MOVING:
 			RECT* r=(RECT*)lp;
 			renderer_wx=r->left;
 			renderer_wy=r->top;
-			return 0;
+			break;
 		case WM_DESTROY:
 			PostQuitMessage(0);
 			renderer_w=NULL;
-			return 0;
+			break;
 	}
 	return DefWindowProc(hwnd,msg,wp,lp);
 }
@@ -455,7 +523,7 @@ void draw_object_buffer(ObjectBuffer ob){
 void init_renderer(void){
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	WNDCLASSEXW wc={
-		sizeof(WNDCLASSEX),
+		sizeof(WNDCLASSEXW),
 		CS_DBLCLKS|CS_OWNDC|CS_HREDRAW|CS_VREDRAW,
 		&_msg_cb,
 		0,
@@ -465,14 +533,14 @@ void init_renderer(void){
 		0,
 		0,
 		0,
-		L"Platformer Game",
+		L"Terminal",
 		0
 	};
 	RegisterClassExW(&wc);
 	assert(renderer_w==NULL);
-	renderer_w=CreateWindowExW(wc.style,wc.lpszClassName,L"Platformer Game",WS_VISIBLE,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,NULL,NULL,GetModuleHandle(0),NULL);
+	renderer_w=CreateWindowExW(wc.style,wc.lpszClassName,L"Terminal",0,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,NULL,NULL,GetModuleHandle(0),NULL);
 	SetWindowPos(renderer_w,HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE);
-	SetWindowLongPtr(renderer_w,GWL_STYLE,WS_VISIBLE);
+	SetWindowLongPtr(renderer_w,GWL_STYLE,WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX|WS_MAXIMIZEBOX|WS_THICKFRAME);
 	SetWindowLongPtr(renderer_w,GWL_EXSTYLE,0);
 	MONITORINFO mf={
 		sizeof(mf)
@@ -484,8 +552,8 @@ void init_renderer(void){
 	renderer_wy=mf.rcMonitor.top/2+mf.rcMonitor.bottom/2-renderer_wh/2;
 	renderer_wsf=GetDpiForWindow(renderer_w)/96.0f;
 	SetWindowPos(renderer_w,NULL,renderer_wx,renderer_wy,renderer_ww,renderer_wh,SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
-	SetCapture(renderer_w);
-	ShowWindow(renderer_w,SW_SHOW);
+	SetFocus(renderer_w);
+	ShowWindow(renderer_w,SW_SHOWNORMAL);
 	UpdateWindow(renderer_w);
 	SetCursor(LoadCursorW(NULL,IDC_APPSTARTING));
 	LARGE_INTEGER tf;
@@ -499,6 +567,10 @@ void init_renderer(void){
 			DispatchMessage(&msg);
 		}
 		QueryPerformanceCounter(&c);
+		POINT mp;
+		GetCursorPos(&mp);
+		renderer_mx=(int16_t)mp.x-renderer_wx;
+		renderer_my=(int16_t)mp.y-renderer_wy;
 		if (lt.QuadPart==0){
 			D3D_FEATURE_LEVEL fl;
 			D3D_FEATURE_LEVEL sfl[]={
@@ -521,66 +593,36 @@ void init_renderer(void){
 			IDXGIFactory2* dxgi_f2=NULL;
 			hr=IDXGIFactory1_QueryInterface(dxgi_f,&IID_IDXGIFactory2,(void**)&dxgi_f2);
 			assert(hr==S_OK);
-			if (dxgi_f2!=NULL){
-				hr=ID3D11Device_QueryInterface(renderer_d3_d,&IID_ID3D11Device1,(void**)&renderer_d3_d1);
-				if (SUCCEEDED(hr)){
-					ID3D11DeviceContext_QueryInterface(renderer_d3_dc,&IID_ID3D11DeviceContext1,(void**)&renderer_d3_dc1);
-				}
-				DXGI_SWAP_CHAIN_DESC1 sc_d={
-					renderer_ww,
-					renderer_wh,
-					DXGI_FORMAT_R8G8B8A8_UNORM,
-					false,
-					{
-						1,
-						0
-					},
-					DXGI_USAGE_RENDER_TARGET_OUTPUT,
-					1,
-					DXGI_SCALING_STRETCH,
-					DXGI_SWAP_EFFECT_DISCARD,
-					DXGI_ALPHA_MODE_UNSPECIFIED,
-					0
-				};
-				IUnknown* du;
-				ID3D11Device_QueryInterface(renderer_d3_d,&IID_IUnknown,(void**)&du);
-				hr=IDXGIFactory2_CreateSwapChainForHwnd(dxgi_f2,du,renderer_w,&sc_d,NULL,NULL,&renderer_d3_sc1);
-				IUnknown_Release(du);
-				if (SUCCEEDED(hr)){
-					hr=IDXGISwapChain1_QueryInterface(renderer_d3_sc1,&IID_IDXGISwapChain,(void**)&renderer_d3_sc);
-					assert(!FAILED(hr));
-				}
-				IDXGIFactory2_Release(dxgi_f2);
+			assert(dxgi_f2!=NULL);
+			hr=ID3D11Device_QueryInterface(renderer_d3_d,&IID_ID3D11Device1,(void**)&renderer_d3_d1);
+			if (SUCCEEDED(hr)){
+				ID3D11DeviceContext_QueryInterface(renderer_d3_dc,&IID_ID3D11DeviceContext1,(void**)&renderer_d3_dc1);
 			}
-			else{
-				DXGI_SWAP_CHAIN_DESC sc_d={
-					{
-						renderer_ww,
-						renderer_wh,
-						{
-							60,
-							1
-						},
-						DXGI_FORMAT_UNKNOWN,
-						DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
-						DXGI_MODE_SCALING_UNSPECIFIED
-					},
-					{
-						1,
-						0
-					},
-					DXGI_USAGE_RENDER_TARGET_OUTPUT,
+			DXGI_SWAP_CHAIN_DESC1 sc_d={
+				renderer_ww,
+				renderer_wh,
+				DXGI_FORMAT_R8G8B8A8_UNORM,
+				false,
+				{
 					1,
-					renderer_w,
-					true,
-					DXGI_SWAP_EFFECT_DISCARD,
 					0
-				};
-				IUnknown* du;
-				ID3D11Device_QueryInterface(renderer_d3_d,&IID_IUnknown,(void**)&du);
-				IDXGIFactory2_CreateSwapChain(dxgi_f,du,&sc_d,&renderer_d3_sc);
-				IUnknown_Release(du);
+				},
+				DXGI_USAGE_RENDER_TARGET_OUTPUT,
+				2,
+				DXGI_SCALING_NONE,
+				DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+				DXGI_ALPHA_MODE_UNSPECIFIED,
+				0
+			};
+			IUnknown* du;
+			ID3D11Device_QueryInterface(renderer_d3_d,&IID_IUnknown,(void**)&du);
+			hr=IDXGIFactory2_CreateSwapChainForHwnd(dxgi_f2,du,renderer_w,&sc_d,NULL,NULL,&renderer_d3_sc1);
+			IUnknown_Release(du);
+			if (SUCCEEDED(hr)){
+				hr=IDXGISwapChain1_QueryInterface(renderer_d3_sc1,&IID_IDXGISwapChain,(void**)&renderer_d3_sc);
+				assert(!FAILED(hr));
 			}
+			IDXGIFactory2_Release(dxgi_f2);
 			IDXGIFactory2_MakeWindowAssociation(dxgi_f,renderer_w,DXGI_MWA_NO_ALT_ENTER);
 			IDXGIFactory2_Release(dxgi_f);
 			ID3D11Texture2D* bb=NULL;
@@ -628,6 +670,7 @@ void init_renderer(void){
 			ID3D11Resource* dsr;
 			ID3D11Texture2D_QueryInterface(renderer_d3_ds,&IID_ID3D11Resource,(void**)&dsr);
 			hr=ID3D11Device_CreateDepthStencilView(renderer_d3_d,dsr,&dsv,&renderer_d3_dsv);
+			ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,1,&renderer_d3_rt,renderer_d3_dsv);
 			D3D11_DEPTH_STENCIL_DESC dss={
 				true,
 				D3D11_DEPTH_WRITE_MASK_ALL,
@@ -674,7 +717,6 @@ void init_renderer(void){
 			hr=ID3D11Device_CreateBlendState(renderer_d3_d,&bsd,&renderer_d3_bse);
 			bsd.RenderTarget[0].BlendEnable=false;
 			hr=ID3D11Device_CreateBlendState(renderer_d3_d,&bsd,&renderer_d3_bsd);
-			ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,1,&renderer_d3_rt,renderer_d3_dsv);
 			D3D11_VIEWPORT vp={
 				0,
 				0,
@@ -704,13 +746,14 @@ void init_renderer(void){
 		else{
 			ID3D11DeviceContext_ClearRenderTargetView(renderer_d3_dc,renderer_d3_rt,renderer_cc);
 			ID3D11DeviceContext_ClearDepthStencilView(renderer_d3_dc,renderer_d3_dsv,D3D11_CLEAR_DEPTH,1.0f,0);
+			ID3D11DeviceContext_OMSetRenderTargets(renderer_d3_dc,1,&renderer_d3_rt,renderer_d3_dsv);
 			update_engine((double)((c.QuadPart-lt.QuadPart)*1000000/tf.QuadPart));
 		}
 		if (renderer_w==NULL){
 			break;
 		}
 		renderer_mf&=(~M_LEFT_DBL)&(~M_MIDDLE_DBL)&(~M_RIGHT_DBL)&(~M_X1_DBL)&(~M_X2_DBL);
-		HRESULT r=IDXGISwapChain_Present(renderer_d3_sc,0,0);
+		HRESULT r=IDXGISwapChain_Present(renderer_d3_sc1,0,0);
 		if (r!=S_OK&&r!=DXGI_STATUS_OCCLUDED){
 			printf("%lx\n",r);
 			assert(0);

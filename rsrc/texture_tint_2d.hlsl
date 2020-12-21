@@ -8,15 +8,15 @@ cbuffer core:register(b0){
 
 
 
-Texture2D tx;
-SamplerState ss;
+Texture2D tx:register(t0);
+SamplerState ss:register(s0);
 
 
 
 struct VS_OUT{
 	float4 p:SV_POSITION;
 	float2 t:TEXCOORD;
-	float4 c:COLOR;
+	float3 c:COLOR;
 };
 
 
@@ -25,7 +25,7 @@ VS_OUT texture_tint_2d_vs(float4 p:POSITION,float2 t:TEXCOORD,float3 c:COLOR){
 	VS_OUT o={
 		mul(p,pm),
 		t,
-		float4(c.x,c.y,c.z,1)
+		c
 	};
 	return o;
 }
@@ -33,5 +33,5 @@ VS_OUT texture_tint_2d_vs(float4 p:POSITION,float2 t:TEXCOORD,float3 c:COLOR){
 
 
 float4 texture_tint_2d_ps(VS_OUT vo):SV_TARGET{
-	return tx.Sample(ss,vo.t)*vo.c;
+	return float4(vo.c.x,vo.c.y,vo.c.z,tx.Sample(ss,vo.t).r);
 }
