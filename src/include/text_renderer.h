@@ -19,16 +19,30 @@ struct _FONT_CHAR_INFO{
 	float sx;
 	float sy;
 	float a;
+	uint32_t ks;
+};
+
+
+
+struct _FONT_KERNING_PAIR{
+	uint32_t a;
+	uint32_t b;
+	float v;
 };
 
 
 
 struct _FONT{
 	uint16_t sz;
+	float a;
+	float d;
+	float lg;
 	uint32_t tx_w;
 	uint32_t tx_h;
-	uint16_t* c_m;
+	uint32_t* c_m;
 	struct _FONT_CHAR_INFO* c_dt;
+	uint32_t kpl;
+	struct _FONT_KERNING_PAIR* kp;
 	ID3D11ShaderResourceView* sr;
 	ID3D11SamplerState* ss;
 };
@@ -53,7 +67,7 @@ Font create_font(char* nm,uint16_t sz);
 
 
 
-RenderedText render_text(Font f,char* s,float x,float y);
+RenderedText render_text(Font f,char* s,uint16_t sz,float x,float y);
 
 
 

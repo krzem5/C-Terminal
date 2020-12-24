@@ -1,7 +1,6 @@
 #include <common.h>
 #include <engine.h>
 #include <renderer.h>
-#include <ui.h>
 #include <text_renderer.h>
 #include <stdio.h>
 
@@ -20,13 +19,11 @@ RenderedText tmp=NULL;
 
 
 void init_engine(void){
+	SetConsoleOutputCP(CP_UTF8);
 	cb=create_constant_buffer(sizeof(CBufferLayout));
-	#define _near (0.1f)
-	#define _far (1000.0f)
-	tmp_f=create_font("Consolas",30);
-	tmp=render_text(tmp_f,"The quick brown fox jumped over the lazy dog.",0,0);
+	tmp_f=create_font("Consolas",128);
+	tmp=render_text(tmp_f,"The quick brown fox jumped over the lazy dog.",32,0,0);// 💤€𐐷
 	update_size();
-	// init_ui();
 }
 
 
@@ -34,14 +31,12 @@ void init_engine(void){
 void update_engine(double dt){
 	static float t=0;
 	t+=(float)(dt*1e-6);
-	// update_ui(dt);
 	if (renderer_w==NULL){
 		return;
 	}
 	float bf[]={0,0,0,0};
 	ID3D11DeviceContext_OMSetBlendState(renderer_d3_dc,renderer_d3_bse,bf,0xffffffff);
 	ID3D11DeviceContext_OMSetDepthStencilState(renderer_d3_dc,renderer_d3_ddss,1);
-	// draw_ui();
 	draw_text(tmp_f,tmp);
 	SetCursor(LoadCursorW(NULL,IDC_ARROW));
 }

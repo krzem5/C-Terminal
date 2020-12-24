@@ -115,16 +115,22 @@ LRESULT CALLBACK _msg_cb(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 				RECT sz;
 				GetWindowRect(renderer_w,&sz);
 				if (sz.right!=0&&sz.bottom!=0){
-					if (sz.top<0){
-						sz.top=0;
-					}
-					if (sz.left<0){
-						sz.left=0;
-					}
 					renderer_wx=sz.left;
 					renderer_wy=sz.top;
 					renderer_ww=sz.right-sz.left;
 					renderer_wh=sz.bottom-sz.top;
+					if (renderer_wx<0){
+						renderer_wx=0;
+					}
+					if (renderer_wy<0){
+						renderer_wy=0;
+					}
+					if (renderer_ww<1){
+						renderer_ww=1;
+					}
+					if (renderer_wh<1){
+						renderer_wh=1;
+					}
 					ID3D11RenderTargetView_Release(renderer_d3_rt);
 					ID3D11Texture2D_Release(renderer_d3_ds);
 					ID3D11DepthStencilView_Release(renderer_d3_dsv);
